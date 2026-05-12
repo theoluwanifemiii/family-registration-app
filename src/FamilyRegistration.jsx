@@ -344,7 +344,7 @@ export default function FamilyRegistration() {
                   <p style={{ fontSize: 14, color: MUTED, marginBottom: 14 }}>Enter your admin PIN to continue.</p>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input
-                      type="password" maxLength={6} placeholder="PIN"
+                      type="password" maxLength={32} placeholder="PIN"
                       value={pin}
                       onChange={e => { setPin(e.target.value); setPinErr(false); }}
                       onKeyDown={e => e.key === "Enter" && (pin === ADMIN_PIN ? setAdminOk(true) : setPinErr(true))}
