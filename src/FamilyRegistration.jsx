@@ -279,22 +279,22 @@ export default function FamilyRegistration() {
                   Pick the family you'd like to join. Up to {MAX_SLOTS} members each.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  const next = view === "admin" ? "user" : "admin";
-                  setView(next);
-                  window.history.pushState(null, "", next === "admin" ? "/admin" : "/");
-                }}
-                style={{
-                  all: "unset", cursor: "pointer", fontSize: 12, fontWeight: 500,
-                  color: view === "admin" ? ACCENT : MUTED,
-                  background: view === "admin" ? "#FEF3C7" : "transparent",
-                  border: `1px solid ${view === "admin" ? "#F5D98A" : BORDER}`,
-                  padding: "6px 14px", borderRadius: 8, flexShrink: 0, marginTop: 6,
-                }}
-              >
-                {view === "admin" ? "← Back" : "Admin"}
-              </button>
+              {view === "admin" && (
+                <button
+                  onClick={() => {
+                    setView("user");
+                    window.history.pushState(null, "", "/");
+                  }}
+                  style={{
+                    all: "unset", cursor: "pointer", fontSize: 12, fontWeight: 500,
+                    color: ACCENT, background: "#FEF3C7",
+                    border: `1px solid #F5D98A`,
+                    padding: "6px 14px", borderRadius: 8, flexShrink: 0, marginTop: 6,
+                  }}
+                >
+                  ← Back
+                </button>
+              )}
             </div>
           </div>
 
