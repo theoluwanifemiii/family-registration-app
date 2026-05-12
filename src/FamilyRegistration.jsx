@@ -4,7 +4,7 @@ import { api } from "../convex/_generated/api";
 
 const STORAGE_KEY = "fm2026_registered";
 const MAX_SLOTS   = 15;
-const ADMIN_PIN   = import.meta.env.VITE_ADMIN_PIN || "1234";
+const ADMIN_PIN   = import.meta.env.VITE_ADMIN_PIN || "";
 
 const FAMILIES = [
   { id:  1, name: "Blessing Homes"        },
