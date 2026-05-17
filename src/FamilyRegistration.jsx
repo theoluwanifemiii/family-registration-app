@@ -58,8 +58,8 @@ const css = `
   @keyframes checkPop{ 0%{transform:scale(0)} 60%{transform:scale(1.15)} 100%{transform:scale(1)} }
   @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.4} }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: #FAFAF7; min-height: 100vh; }
-  input, button { font-family: inherit; }
+  html, body { background: #FAFAF7; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  input, button, select, label { font-family: inherit; }
   input::placeholder { color: #C4BAB0; }
 `;
 
@@ -177,7 +177,11 @@ export default function FamilyRegistration() {
   const [adminOk, setAdminOk]   = useState(false);
   const [pin, setPin]           = useState("");
   const [pinErr, setPinErr]     = useState(false);
-  const [expanded, setExpanded] = useState(null);
+  const [expanded, setExpanded]             = useState(null);
+  const [search, setSearch]                 = useState("");
+  const [showExportDrop, setShowExportDrop] = useState(false);
+  const [exportSelected, setExportSelected] = useState([]);   // family ids (numbers)
+  const [exportMode, setExportMode]         = useState("single"); // "single" | "multiple"
 
   const selFam    = FAMILIES.find(f => f.id === selectedId);
   const selColors = selectedId ? PALETTE[selectedId] : null;
@@ -217,21 +221,50 @@ export default function FamilyRegistration() {
     }
   }
 
-  function exportCSV() {
+  function buildCSV(families) {
     const rows = [["Family", "Name", "Email", "Phone"]];
-    FAMILIES.forEach(f => {
+    families.forEach(f => {
       (regs[f.id] || []).forEach(m => {
         rows.push([f.name, m.name, m.email || "", m.phone || ""]);
       });
     });
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    return rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  }
+
+  function downloadCSV(csv, filename) {
     const blob = new Blob([csv], { type: "text/csv" });
     const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement("a"), {
-      href: url, download: `family-month-2026-${new Date().toISOString().slice(0,10)}.csv`,
-    });
+    const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
+  }
+
+  function handleExport() {
+    const date = new Date().toISOString().slice(0, 10);
+    const familiesToExport = exportSelected.length === 0
+      ? FAMILIES
+      : FAMILIES.filter(f => exportSelected.includes(f.id));
+
+    if (exportMode === "single" || familiesToExport.length === 1) {
+      const label = familiesToExport.length === FAMILIES.length
+        ? "all"
+        : familiesToExport.map(f => f.name.replace(/\s+/g, "-").toLowerCase()).join("+");
+      downloadCSV(buildCSV(familiesToExport), `family-month-2026-${label}-${date}.csv`);
+    } else {
+      familiesToExport.forEach((f, i) => {
+        setTimeout(() => {
+          const label = f.name.replace(/\s+/g, "-").toLowerCase();
+          downloadCSV(buildCSV([f]), `family-month-2026-${label}-${date}.csv`);
+        }, i * 300);
+      });
+    }
+    setShowExportDrop(false);
+  }
+
+  function toggleExportFamily(id) {
+    setExportSelected(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
   }
 
   /* ── Shared tokens ── */
@@ -369,15 +402,37 @@ export default function FamilyRegistration() {
                 </div>
               ) : (
                 <>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <p style={{ fontSize: 13, color: MUTED }}>{totalRegs} registered across {FAMILIES.length} families</p>
+                  {/* Stats */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
+                    {[["Registered", totalRegs], ["Families", FAMILIES.length], ["Spots Left", FAMILIES.length * MAX_SLOTS - totalRegs]].map(([label, val]) => (
+                      <div key={label} style={CARD}>
+                        <p style={{ fontSize: 11, color: MUTED, fontWeight: 500, marginBottom: 4 }}>{label.toUpperCase()}</p>
+                        <p style={{ fontSize: 26, fontWeight: 700, color: ACCENT }}>{val}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Search + Export toolbar */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    <input
+                      type="text"
+                      placeholder="Search by name…"
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      style={{
+                        flex: 1,
+                        background: "#FFFFFF", border: `1.5px solid ${BORDER}`,
+                        borderRadius: 8, padding: "8px 12px", fontSize: 13,
+                        color: TEXT, outline: "none",
+                      }}
+                    />
                     <button
-                      onClick={exportCSV}
+                      onClick={() => { setExportSelected([]); setExportMode("single"); setShowExportDrop(true); }}
                       style={{
                         all: "unset", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
                         fontSize: 13, fontWeight: 600, color: ACCENT,
                         background: "#FEF3C7", border: "1px solid #F5D98A",
-                        padding: "7px 14px", borderRadius: 8,
+                        padding: "8px 14px", borderRadius: 8, whiteSpace: "nowrap",
                       }}
                     >
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -386,76 +441,81 @@ export default function FamilyRegistration() {
                       Export CSV
                     </button>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 20 }}>
-                    {[["Registered", totalRegs], ["Families", FAMILIES.length], ["Spots Left", FAMILIES.length * MAX_SLOTS - totalRegs]].map(([label, val]) => (
-                      <div key={label} style={CARD}>
-                        <p style={{ fontSize: 11, color: MUTED, fontWeight: 500, marginBottom: 4 }}>{label.toUpperCase()}</p>
-                        <p style={{ fontSize: 26, fontWeight: 700, color: ACCENT }}>{val}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {FAMILIES.map(f => {
-                    const members = regs[f.id] || [];
-                    const { color, bg } = PALETTE[f.id];
-                    const open = expanded === f.id;
-                    return (
-                      <div key={f.id} style={{
-                        ...CARD, padding: 0, marginBottom: 6, overflow: "hidden",
-                        borderColor: open ? color + "60" : BORDER,
-                      }}>
-                        <button
-                          onClick={() => setExpanded(open ? null : f.id)}
-                          style={{
-                            all: "unset", cursor: "pointer", width: "100%",
-                            display: "flex", alignItems: "center", justifyContent: "space-between",
-                            padding: "12px 16px",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, display: "inline-block" }} />
-                            <span style={{ fontWeight: 500, fontSize: 14, color: TEXT }}>{f.name}</span>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 12, color, background: bg, padding: "2px 10px", borderRadius: 20, fontWeight: 500 }}>
-                              {members.length}/{MAX_SLOTS}
-                            </span>
-                            <span style={{ color: MUTED, fontSize: 10 }}>{open ? "▲" : "▼"}</span>
-                          </div>
-                        </button>
-                        {open && (
-                          <div style={{ padding: "0 16px 14px", borderTop: `1px solid ${BORDER}` }}>
-                            {members.length === 0
-                              ? <p style={{ fontSize: 13, color: MUTED, padding: "10px 0", fontStyle: "italic" }}>No members yet.</p>
-                              : (
-                                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
-                                  <thead>
-                                    <tr>
-                                      {["#", "Name", "Email", "Phone"].map(h => (
-                                        <th key={h} style={{
-                                          textAlign: "left", fontSize: 10, color: MUTED, fontWeight: 600,
-                                          padding: "4px 8px 4px 0", borderBottom: `1px solid ${BORDER}`,
-                                          textTransform: "uppercase", letterSpacing: ".05em",
-                                        }}>{h}</th>
-                                      ))}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {members.map((m, i) => (
-                                      <tr key={i}>
-                                        <td style={{ padding: "7px 8px 7px 0", fontSize: 12, color: MUTED }}>{i + 1}</td>
-                                        <td style={{ padding: "7px 8px 7px 0", fontSize: 13, fontWeight: 500, color: TEXT }}>{m.name}</td>
-                                        <td style={{ padding: "7px 8px 7px 0", fontSize: 12, color: MUTED }}>{m.email || "—"}</td>
-                                        <td style={{ padding: "7px 8px 7px 0", fontSize: 12, color: MUTED }}>{m.phone || "—"}</td>
+
+                  {/* Family list — sorted by fullness */}
+                  {[...FAMILIES]
+                    .sort((a, b) => (regs[b.id]?.length ?? 0) - (regs[a.id]?.length ?? 0))
+                    .map(f => {
+                      const members = regs[f.id] || [];
+                      const { color, bg } = PALETTE[f.id];
+                      const open = expanded === f.id;
+
+                      // Apply name search filter
+                      const filteredMembers = search.trim()
+                        ? members.filter(m => m.name.toLowerCase().includes(search.trim().toLowerCase()))
+                        : members;
+
+                      // Hide family entirely if searching and no match
+                      if (search.trim() && filteredMembers.length === 0) return null;
+
+                      return (
+                        <div key={f.id} style={{
+                          ...CARD, padding: 0, marginBottom: 6, overflow: "hidden",
+                          borderColor: open ? color + "60" : BORDER,
+                        }}>
+                          <button
+                            onClick={() => setExpanded(open ? null : f.id)}
+                            style={{
+                              all: "unset", cursor: "pointer", width: "100%",
+                              display: "flex", alignItems: "center", justifyContent: "space-between",
+                              padding: "12px 16px",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, display: "inline-block" }} />
+                              <span style={{ fontWeight: 500, fontSize: 14, color: TEXT }}>{f.name}</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 12, color, background: bg, padding: "2px 10px", borderRadius: 20, fontWeight: 500 }}>
+                                {members.length}/{MAX_SLOTS}
+                              </span>
+                              <span style={{ color: MUTED, fontSize: 10 }}>{open ? "▲" : "▼"}</span>
+                            </div>
+                          </button>
+                          {open && (
+                            <div style={{ padding: "0 16px 14px", borderTop: `1px solid ${BORDER}` }}>
+                              {filteredMembers.length === 0
+                                ? <p style={{ fontSize: 13, color: MUTED, padding: "10px 0", fontStyle: "italic" }}>No members yet.</p>
+                                : (
+                                  <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+                                    <thead>
+                                      <tr>
+                                        {["#", "Name", "Email", "Phone"].map(h => (
+                                          <th key={h} style={{
+                                            textAlign: "left", fontSize: 10, color: MUTED, fontWeight: 600,
+                                            padding: "4px 8px 4px 0", borderBottom: `1px solid ${BORDER}`,
+                                            textTransform: "uppercase", letterSpacing: ".05em",
+                                          }}>{h}</th>
+                                        ))}
                                       </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                                    </thead>
+                                    <tbody>
+                                      {filteredMembers.map((m, i) => (
+                                        <tr key={i}>
+                                          <td style={{ padding: "7px 8px 7px 0", fontSize: 12, color: MUTED }}>{i + 1}</td>
+                                          <td style={{ padding: "7px 8px 7px 0", fontSize: 13, fontWeight: 500, color: TEXT }}>{m.name}</td>
+                                          <td style={{ padding: "7px 8px 7px 0", fontSize: 12, color: MUTED }}>{m.email || "—"}</td>
+                                          <td style={{ padding: "7px 8px 7px 0", fontSize: 12, color: MUTED }}>{m.phone || "—"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </>
               )}
             </div>
@@ -656,6 +716,155 @@ export default function FamilyRegistration() {
           )}
         </div>
       </div>
+
+      {/* ── Export Modal ── */}
+      {showExportDrop && (
+        <div
+          onClick={() => setShowExportDrop(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 100,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "0 16px",
+            animation: "fadeUp .2s ease",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: "#FFFFFF", borderRadius: 16, width: "100%", maxWidth: 440,
+              boxShadow: "0 24px 64px rgba(0,0,0,.18)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Header */}
+            <div style={{ padding: "24px 24px 16px", borderBottom: `1px solid ${BORDER}` }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                <div>
+                  <h3 style={{ fontSize: 17, fontWeight: 700, color: TEXT, marginBottom: 4 }}>Export registrations</h3>
+                  <p style={{ fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
+                    Select families to export. Leave all unchecked to export everyone.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowExportDrop(false)}
+                  style={{
+                    all: "unset", cursor: "pointer", width: 28, height: 28,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    borderRadius: "50%", background: "#F0EDE8", color: MUTED,
+                    fontSize: 16, lineHeight: 1, flexShrink: 0, marginLeft: 12,
+                  }}
+                >×</button>
+              </div>
+
+              {/* Select all / Clear */}
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <button
+                  onClick={() => setExportSelected(FAMILIES.map(f => f.id))}
+                  style={{
+                    all: "unset", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                    color: ACCENT, background: "#FEF3C7", border: "1px solid #F5D98A",
+                    padding: "5px 12px", borderRadius: 6,
+                  }}
+                >Select all</button>
+                <button
+                  onClick={() => setExportSelected([])}
+                  style={{
+                    all: "unset", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                    color: MUTED, background: "#F0EDE8", border: `1px solid ${BORDER}`,
+                    padding: "5px 12px", borderRadius: 6,
+                  }}
+                >Clear</button>
+                {exportSelected.length > 0 && (
+                  <span style={{ fontSize: 12, color: MUTED, alignSelf: "center", marginLeft: 4 }}>
+                    {exportSelected.length} selected
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Family list */}
+            <div style={{ maxHeight: 280, overflowY: "auto", padding: "8px 0" }}>
+              {FAMILIES.map(f => {
+                const count = regs[f.id]?.length ?? 0;
+                const { color, bg } = PALETTE[f.id];
+                const checked = exportSelected.includes(f.id);
+                return (
+                  <label key={f.id} style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "10px 24px", cursor: "pointer",
+                    background: checked ? "#FFFBEB" : "transparent",
+                    borderBottom: `1px solid ${BORDER}`,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleExportFamily(f.id)}
+                      style={{ accentColor: color, width: 16, height: 16, flexShrink: 0 }}
+                    />
+                    <span style={{ flex: 1, fontSize: 14, color: TEXT, fontWeight: checked ? 600 : 400 }}>{f.name}</span>
+                    <span style={{
+                      fontSize: 12, fontWeight: 600, color,
+                      background: bg, padding: "2px 10px", borderRadius: 20,
+                    }}>{count} member{count !== 1 ? "s" : ""}</span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* File mode toggle — only when 2+ selected */}
+            {exportSelected.length > 1 && (
+              <div style={{ padding: "14px 24px", borderTop: `1px solid ${BORDER}` }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: MUTED, marginBottom: 8, textTransform: "uppercase", letterSpacing: ".05em" }}>Download as</p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[["single", "One combined file"], ["multiple", "Separate files per family"]].map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => setExportMode(val)}
+                      style={{
+                        all: "unset", cursor: "pointer", flex: 1, textAlign: "center",
+                        padding: "9px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                        border: `1.5px solid ${exportMode === val ? ACCENT : BORDER}`,
+                        background: exportMode === val ? "#FFFBEB" : "#FAFAF7",
+                        color: exportMode === val ? ACCENT : MUTED,
+                        transition: "all .15s",
+                      }}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Footer actions */}
+            <div style={{ padding: "14px 24px 24px", display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setShowExportDrop(false)}
+                style={{
+                  all: "unset", cursor: "pointer", flex: 1, textAlign: "center",
+                  padding: "12px", borderRadius: 10, fontSize: 14, fontWeight: 500,
+                  border: `1.5px solid ${BORDER}`, color: MUTED,
+                }}
+              >Cancel</button>
+              <button
+                onClick={handleExport}
+                style={{
+                  all: "unset", cursor: "pointer", flex: 2, textAlign: "center",
+                  padding: "12px", borderRadius: 10, fontSize: 14, fontWeight: 700,
+                  background: ACCENT, color: "#fff",
+                }}
+              >
+                {exportSelected.length === 0
+                  ? `Download all (${totalRegs} registrations)`
+                  : exportSelected.length === 1
+                    ? `Download ${FAMILIES.find(f => f.id === exportSelected[0])?.name}`
+                    : exportMode === "single"
+                      ? `Download ${exportSelected.length} families · 1 file`
+                      : `Download ${exportSelected.length} files`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Sticky continue button ── */}
       {view === "user" && step === "select" && selFam && selColors && (
